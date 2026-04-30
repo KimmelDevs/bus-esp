@@ -1,19 +1,80 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { supabase } from '@/lib/supabase'
+
+interface UserSuggestion {
+  id: string
+  name: string
+  rfid_uid: string
+}
 
 export default function TopUpPage() {
-  const [form, setForm] = useState({ uid: '', amount: '' })
+  const [form, setForm] = useState({ name: '', amount: '' })
+  const [selectedUser, setSelectedUser] = useState<UserSuggestion | null>(null)
+  const [suggestions, setSuggestions] = useState<UserSuggestion[]>([])
+  const [showDropdown, setShowDropdown] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Search users by name as user types
+  useEffect(() => {
+    const query = form.name.trim()
+    if (!query || selectedUser) {
+      setSuggestions([])
+      setShowDropdown(false)
+      return
+    }
+    const timeout = setTimeout(async () => {
+      const { data } = await supabase
+        .from('users')
+        .select('id, name, rfid_uid')
+        .ilike('name', `%${query}%`)
+        .limit(6)
+      if (data && data.length > 0) {
+        setSuggestions(data)
+        setShowDropdown(true)
+      } else {
+        setSuggestions([])
+        setShowDropdown(false)
+      }
+    }, 200)
+    return () => clearTimeout(timeout)
+  }, [form.name, selectedUser])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  function selectUser(user: UserSuggestion) {
+    setSelectedUser(user)
+    setForm(f => ({ ...f, name: user.name }))
+    setShowDropdown(false)
+    setError('')
+  }
+
+  function clearUser() {
+    setSelectedUser(null)
+    setForm(f => ({ ...f, name: '' }))
+    setSuggestions([])
+  }
 
   async function handleSubmit() {
-    if (!form.uid || !form.amount) { setError('All fields are required.'); return }
+    if (!selectedUser) { setError('Please select a user from the list.'); return }
+    if (!form.amount) { setError('Please enter an amount.'); return }
     setLoading(true)
     setError('')
     const res = await fetch('/api/topup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rfid_uid: form.uid, amount: parseFloat(form.amount) }),
+      body: JSON.stringify({ rfid_uid: selectedUser.rfid_uid, amount: parseFloat(form.amount) }),
     })
     const data = await res.json()
     if (data.checkout_url) {
@@ -35,6 +96,7 @@ export default function TopUpPage() {
     fontFamily: 'var(--font-body)',
     transition: 'all 0.2s',
     outline: 'none',
+    boxSizing: 'border-box',
   }
 
   const labelStyle: React.CSSProperties = {
@@ -90,14 +152,87 @@ export default function TopUpPage() {
           )}
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <div>
-              <label style={labelStyle}>RFID UID</label>
-              <input
-                style={{ ...inputStyle, fontFamily: 'var(--font-mono)', letterSpacing: '0.06em' }}
-                placeholder="e.g. A1B2C3D4"
-                value={form.uid}
-                onChange={e => setForm({ ...form, uid: e.target.value })}
-              />
+
+            {/* Name search with autocomplete */}
+            <div ref={dropdownRef} style={{ position: 'relative' }}>
+              <label style={labelStyle}>User Name</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  style={inputStyle}
+                  placeholder="Search by name…"
+                  value={form.name}
+                  autoComplete="off"
+                  onChange={e => {
+                    setForm({ ...form, name: e.target.value })
+                    if (selectedUser) setSelectedUser(null)
+                  }}
+                  onFocus={() => suggestions.length > 0 && setShowDropdown(true)}
+                />
+                {selectedUser && (
+                  <button
+                    onClick={clearUser}
+                    style={{
+                      position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: 'var(--muted)', fontSize: 18, lineHeight: 1, padding: 2,
+                    }}
+                    title="Clear"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+
+              {/* Dropdown suggestions */}
+              {showDropdown && suggestions.length > 0 && (
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+                  marginTop: 4,
+                  background: 'var(--white)',
+                  border: '1.5px solid var(--border)',
+                  borderRadius: 10,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.10)',
+                  overflow: 'hidden',
+                }}>
+                  {suggestions.map((u, i) => (
+                    <div
+                      key={u.id}
+                      onMouseDown={() => selectUser(u)}
+                      style={{
+                        padding: '11px 14px',
+                        cursor: 'pointer',
+                        borderBottom: i < suggestions.length - 1 ? '1px solid var(--border)' : 'none',
+                        display: 'flex', flexDirection: 'column', gap: 2,
+                        transition: 'background 0.1s',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--off-white)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{u.name}</span>
+                      <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
+                        UID: {u.rfid_uid}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Confirmed selection badge */}
+              {selectedUser && (
+                <div style={{
+                  marginTop: 8, padding: '8px 12px',
+                  background: '#f0fdf4', border: '1px solid #22c55e40',
+                  borderRadius: 8, fontSize: 12, color: '#16a34a',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  <span>✓</span>
+                  <span>
+                    <strong>{selectedUser.name}</strong>
+                    &nbsp;·&nbsp;
+                    <span style={{ fontFamily: 'var(--font-mono)' }}>{selectedUser.rfid_uid}</span>
+                  </span>
+                </div>
+              )}
             </div>
 
             <div>
@@ -187,7 +322,7 @@ export default function TopUpPage() {
               How It Works
             </div>
             {[
-              { step: '1', title: 'Enter RFID UID', desc: 'Input the card\'s unique identifier' },
+              { step: '1', title: 'Search by Name', desc: 'Type the user\'s name and select from the list' },
               { step: '2', title: 'Choose Amount', desc: 'Select or enter the top-up amount (min ₱50)' },
               { step: '3', title: 'Pay via GCash', desc: 'Complete payment on the PayMongo checkout page' },
               { step: '4', title: 'Balance Updated', desc: 'Wallet loads automatically upon confirmation' },
