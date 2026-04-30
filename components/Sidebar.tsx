@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const links = [
-  { href: '/',    label: 'Dashboard',   icon: '📊' },
+  { href: '/',             label: 'Dashboard',   icon: '📊' },
   { href: '/add-user',     label: 'Add User',     icon: '👤' },
   { href: '/topup',        label: 'Top Up',       icon: '💳' },
   { href: '/transactions', label: 'Transactions', icon: '🧾' },
@@ -27,29 +27,13 @@ export default function Sidebar() {
       gap: '4px',
       zIndex: 100,
     }}>
-      {/* Logo */}
       <div style={{ padding: '0 10px', marginBottom: '28px' }}>
-        <div style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: '10px',
-          color: 'var(--muted)',
-          letterSpacing: '3px',
-          textTransform: 'uppercase',
-          marginBottom: '6px',
-        }}>System</div>
-        <div style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: '20px',
-          fontWeight: 700,
-          color: 'var(--accent)',
-          letterSpacing: '2px',
-        }}>🚌 BUSPAY</div>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--muted)', letterSpacing: '3px', textTransform: 'uppercase', marginBottom: '6px' }}>System</div>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: '20px', fontWeight: 700, color: 'var(--accent)', letterSpacing: '2px' }}>🚌 BUSPAY</div>
       </div>
 
-      {/* Nav links */}
       {links.map(l => {
         const active = l.href === '/' ? path === '/' : path === l.href || path.startsWith(l.href + '/')
-
         return (
           <Link key={l.href} href={l.href} style={{
             display: 'flex',
@@ -71,7 +55,6 @@ export default function Sidebar() {
         )
       })}
 
-      {/* Footer badge */}
       <div style={{ marginTop: 'auto', padding: '14px 10px', borderTop: '1px solid var(--border)' }}>
         <div style={{ fontSize: '10px', color: 'var(--muted)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>Mode</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
