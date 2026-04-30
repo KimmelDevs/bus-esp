@@ -4,7 +4,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import Header from './Header'
 import Sidebar from './Sidebar'
 
-const PUBLIC_PATHS = ['/login']
+const PUBLIC_PATHS = ['/login', '/topup/success', '/topup/failed']
 
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -12,7 +12,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const [authed, setAuthed] = useState<boolean | null>(null)
   const [userEmail, setUserEmail] = useState('')
 
-  const isPublic = PUBLIC_PATHS.includes(pathname)
+  const isPublic = PUBLIC_PATHS.some(p => pathname.startsWith(p))
 
   useEffect(() => {
     ;(async () => {
@@ -33,7 +33,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
           setUserEmail(session.user.email ?? '')
         } else {
           setAuthed(false)
-          router.replace('/login')
+          if (!isPublic) router.replace('/login')
         }
       })
     })()
@@ -45,7 +45,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
     router.replace('/login')
   }
 
-  // Public route (login) — render without shell
+  // Public routes — render without shell
   if (isPublic) return <>{children}</>
 
   // Still checking auth
