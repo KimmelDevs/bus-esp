@@ -5,7 +5,9 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-export const supabaseAdmin = createClient(
-  supabaseUrl,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+// supabaseAdmin is server-only — only call this from API routes / server components
+export function getSupabaseAdmin() {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceKey) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set')
+  return createClient(supabaseUrl, serviceKey)
+}

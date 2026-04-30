@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { getSupabaseAdmin } from '@/lib/supabase'
 import { verifyWebhookSignature } from '@/lib/paymongo'
 
 export async function POST(req: NextRequest) {
@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
 
     if (!rfid_uid || !payment_id) return NextResponse.json({ error: 'Missing metadata' }, { status: 400 })
 
+    const supabaseAdmin = getSupabaseAdmin()
     const { data: user } = await supabaseAdmin.from('users').select('balance').eq('rfid_uid', rfid_uid).single()
     if (user) {
       const newBalance = Number(user.balance) + amount

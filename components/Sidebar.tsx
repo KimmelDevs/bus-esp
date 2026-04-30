@@ -1,65 +1,167 @@
 'use client'
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-const links = [
-  { href: '/',             label: 'Dashboard',   icon: '📊' },
-  { href: '/add-user',     label: 'Add User',     icon: '👤' },
-  { href: '/topup',        label: 'Top Up',       icon: '💳' },
-  { href: '/transactions', label: 'Transactions', icon: '🧾' },
+const NAV = [
+  {
+    group: 'MAIN',
+    links: [
+      {
+        href: '/dashboard',
+        label: 'Dashboard',
+        icon: (
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+          </svg>
+        ),
+      },
+      {
+        href: '/transactions',
+        label: 'Transactions',
+        icon: (
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+            <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
+            <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+          </svg>
+        ),
+      },
+    ],
+  },
+  {
+    group: 'MANAGEMENT',
+    links: [
+      {
+        href: '/add-user',
+        label: 'Add User',
+        icon: (
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+          </svg>
+        ),
+      },
+      {
+        href: '/topup',
+        label: 'Top Up',
+        icon: (
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+            <line x1="1" y1="10" x2="23" y2="10"/>
+          </svg>
+        ),
+      },
+    ],
+  },
 ]
 
 export default function Sidebar() {
-  const path = usePathname()
+  const pathname = usePathname()
+
+  const isActive = (href: string) =>
+    href === '/dashboard'
+      ? pathname === '/dashboard' || pathname === '/'
+      : pathname === href || pathname.startsWith(href + '/')
 
   return (
     <aside style={{
-      width: '220px',
-      height: '100vh',
-      background: 'var(--surface)',
+      width: 'var(--sidebar-w)',
+      background: 'var(--white)',
       borderRight: '1px solid var(--border)',
-      padding: '24px 14px',
-      position: 'fixed',
-      top: 0,
-      left: 0,
       display: 'flex',
       flexDirection: 'column',
-      gap: '4px',
-      zIndex: 100,
+      flexShrink: 0,
+      overflowY: 'auto',
+      paddingTop: 8,
     }}>
-      <div style={{ padding: '0 10px', marginBottom: '28px' }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--muted)', letterSpacing: '3px', textTransform: 'uppercase', marginBottom: '6px' }}>System</div>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: '20px', fontWeight: 700, color: 'var(--accent)', letterSpacing: '2px' }}>🚌 BUSPAY</div>
-      </div>
 
-      {links.map(l => {
-        const active = l.href === '/' ? path === '/' : path === l.href || path.startsWith(l.href + '/')
-        return (
-          <Link key={l.href} href={l.href} style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '11px 12px',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: active ? 600 : 400,
-            color: active ? 'var(--accent)' : 'var(--muted)',
-            background: active ? 'rgba(0,229,255,0.08)' : 'transparent',
-            border: active ? '1px solid rgba(0,229,255,0.18)' : '1px solid transparent',
-            transition: 'all 0.15s',
-            textDecoration: 'none',
+      {NAV.map(({ group, links }) => (
+        <div key={group} style={{ padding: '20px 14px 8px' }}>
+          <div style={{
+            fontSize: 9, fontFamily: 'var(--font-mono)',
+            color: 'var(--muted-light)', letterSpacing: '0.18em',
+            marginBottom: 8, paddingLeft: 10,
           }}>
-            <span style={{ fontSize: '16px' }}>{l.icon}</span>
-            {l.label}
-          </Link>
-        )
-      })}
+            {group}
+          </div>
 
-      <div style={{ marginTop: 'auto', padding: '14px 10px', borderTop: '1px solid var(--border)' }}>
-        <div style={{ fontSize: '10px', color: 'var(--muted)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>Mode</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--warning)', boxShadow: '0 0 6px var(--warning)' }} />
-          <span style={{ fontSize: '12px', color: 'var(--warning)', fontFamily: 'var(--font-mono)' }}>TEST MODE</span>
+          {links.map((link) => {
+            const active = isActive(link.href)
+            return (
+              <a
+                key={link.href}
+                href={link.href}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '10px 12px',
+                  borderRadius: 9,
+                  marginBottom: 3,
+                  fontSize: 13,
+                  fontWeight: active ? 700 : 500,
+                  color: active ? 'var(--royal)' : 'var(--text-mid)',
+                  background: active ? 'var(--royal-subtle)' : 'transparent',
+                  border: active ? '1px solid rgba(26,63,204,0.18)' : '1px solid transparent',
+                  transition: 'all 0.15s',
+                  cursor: 'pointer',
+                  textDecoration: 'none',
+                  position: 'relative',
+                }}
+                onMouseEnter={e => {
+                  if (!active) {
+                    e.currentTarget.style.background = 'var(--surface)'
+                    e.currentTarget.style.color = 'var(--text)'
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (!active) {
+                    e.currentTarget.style.background = 'transparent'
+                    e.currentTarget.style.color = 'var(--text-mid)'
+                  }
+                }}
+              >
+                {active && (
+                  <div style={{
+                    position: 'absolute',
+                    left: 0, top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: 3, height: 18,
+                    background: 'var(--royal)',
+                    borderRadius: '0 3px 3px 0',
+                  }} />
+                )}
+                <span style={{ color: active ? 'var(--royal)' : 'var(--muted)', flexShrink: 0 }}>
+                  {link.icon}
+                </span>
+                {link.label}
+              </a>
+            )
+          })}
+        </div>
+      ))}
+
+      {/* Bottom section */}
+      <div style={{ marginTop: 'auto', padding: '16px 14px', borderTop: '1px solid var(--border)' }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '10px 12px',
+          background: 'var(--royal-subtle)',
+          borderRadius: 9,
+          border: '1px solid rgba(26,63,204,0.18)',
+        }}>
+          <div style={{
+            width: 8, height: 8, borderRadius: '50%',
+            background: '#d97706',
+            boxShadow: '0 0 6px #d9770680',
+            animation: 'pulse-dot 2s ease-in-out infinite',
+          }} />
+          <div>
+            <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--warning)', letterSpacing: '0.1em', fontWeight: 700 }}>
+              TEST MODE
+            </div>
+            <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 1 }}>Sandbox environment</div>
+          </div>
         </div>
       </div>
     </aside>

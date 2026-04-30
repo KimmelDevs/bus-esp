@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { getSupabaseAdmin } from '@/lib/supabase'
 
 export async function POST(req: NextRequest) {
   const body = await req.text()
@@ -8,6 +8,7 @@ export async function POST(req: NextRequest) {
 
   if (!uid) return new Response('NO UID', { status: 400 })
 
+  const supabaseAdmin = getSupabaseAdmin()
   const { data: user } = await supabaseAdmin.from('users').select('*').eq('rfid_uid', uid).single()
   if (!user) {
     await supabaseAdmin.from('transactions').insert({ rfid_uid: uid, status: 'NOT FOUND', amount: 0, balance_after: 0 })
