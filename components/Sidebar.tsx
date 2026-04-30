@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const links = [
-  { href: '/dashboard',    label: 'Dashboard',   icon: '📊' },
+  { href: '/',    label: 'Dashboard',   icon: '📊' },
   { href: '/add-user',     label: 'Add User',     icon: '👤' },
   { href: '/topup',        label: 'Top Up',       icon: '💳' },
   { href: '/transactions', label: 'Transactions', icon: '🧾' },
@@ -48,7 +48,8 @@ export default function Sidebar() {
 
       {/* Nav links */}
       {links.map(l => {
-        const active = path === l.href || path.startsWith(l.href + '/')
+        const active = l.href === '/' ? path === '/' : path === l.href || path.startsWith(l.href + '/')
+
         return (
           <Link key={l.href} href={l.href} style={{
             display: 'flex',
