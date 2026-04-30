@@ -83,7 +83,7 @@ export default function DashboardPage() {
 
   useEffect(()=>{loadStats()},[loadStats])
 
-  useEffect(()=>{
+  useEffect(()=>{ ;(async()=>{
     if(!lastScan||processingRef.current)return
     const uid=lastScan.trim().toUpperCase()
     clearScan()
@@ -91,27 +91,41 @@ export default function DashboardPage() {
     const lastTime=cooldownRef.current.get(uid)??0
     const remaining=SCAN_COOLDOWN_MS-(now-lastTime)
     if(remaining>0){
-      const ev:LiveEvent={id:crypto.randomUUID(),rfid_uid:uid,name:'—',type:'—',status:'COOLDOWN',amount:0,balance_after:0,ts:now}
+      const {data:coolUser}=await supabase.from('users').select('name,type').eq('rfid_uid',uid).single()
+      const ev:LiveEvent={id:crypto.randomUUID(),rfid_uid:uid,name:coolUser?.name??'—',type:coolUser?.type??'—',status:'COOLDOWN',amount:0,balance_after:0,ts:now}
       setCurrentEvent(ev)
       setLiveEvents(prev=>[ev,...prev].slice(0,20))
       return
     }
     processingRef.current=true
     cooldownRef.current.set(uid,now)
-    const processingEv:LiveEvent={id:crypto.randomUUID(),rfid_uid:uid,name:'Looking up...',type:'—',status:'PROCESSING',amount:0,balance_after:0,ts:now}
+
+    // Look up user + settings immediately so the name shows during PROCESSING
+    const [{data:user},{data:settings}]=await Promise.all([
+      supabase.from('users').select('name, type, balance').eq('rfid_uid',uid).single(),
+      supabase.from('settings').select('fare').eq('id',1).single(),
+    ])
+    let fare=Number(settings?.fare??10)
+    if(user?.type==='Student')fare=Math.max(0,fare-5)
+
+    const processingEv:LiveEvent={
+      id:crypto.randomUUID(),rfid_uid:uid,
+      name:user?.name??'Unknown Card',
+      type:user?.type??'—',
+      status:'PROCESSING',amount:0,balance_after:0,ts:now,
+    }
     setCurrentEvent(processingEv)
+
     ;(async()=>{
       try{
         const body=new URLSearchParams({uid})
         const res=await fetch('/api/process-payment',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body.toString()})
         const text=await res.text()
         const [statusStr,balStr]=text.split('|')
-        const {data:user}=await supabase.from('users').select('name, type, balance').eq('rfid_uid',uid).single()
-        const {data:settings}=await supabase.from('settings').select('fare').eq('id',1).single()
-        let fare=Number(settings?.fare??10)
-        if(user?.type==='Student')fare=Math.max(0,fare-5)
         const finalEv:LiveEvent={
-          id:processingEv.id,rfid_uid:uid,name:user?.name??'—',type:user?.type??'—',
+          id:processingEv.id,rfid_uid:uid,
+          name:user?.name??'—',
+          type:user?.type??'—',
           status:statusStr as LiveEvent['status'],
           amount:statusStr==='APPROVED'?fare:0,
           balance_after:balStr?Number(balStr):0,
@@ -122,7 +136,7 @@ export default function DashboardPage() {
         await loadStats()
       }finally{processingRef.current=false}
     })()
-  },[lastScan])// eslint-disable-line
+  })() },[lastScan])// eslint-disable-line
 
   const tabStyle=(active:boolean):React.CSSProperties=>({padding:'8px 18px',borderRadius:8,fontSize:12,fontWeight:700,border:'none',cursor:'pointer',background:active?'var(--royal)':'transparent',color:active?'#fff':'var(--muted)',transition:'all 0.15s'})
 
