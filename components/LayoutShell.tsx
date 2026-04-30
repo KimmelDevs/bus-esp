@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Header from './Header'
 import Sidebar from './Sidebar'
+import { MqttProvider } from '@/lib/MqttContext'
 
 const PUBLIC_PATHS = ['/login', '/topup/success', '/topup/failed']
 
@@ -73,21 +74,23 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   if (!authed) return null
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-      <Header userEmail={userEmail} onLogout={handleLogout} />
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <Sidebar />
-        <main style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '32px 36px',
-          background: 'var(--off-white)',
-        }}>
-          <div className="page-enter">
-            {children}
-          </div>
-        </main>
+    <MqttProvider>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+        <Header userEmail={userEmail} onLogout={handleLogout} />
+        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+          <Sidebar />
+          <main style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '32px 36px',
+            background: 'var(--off-white)',
+          }}>
+            <div className="page-enter">
+              {children}
+            </div>
+          </main>
+        </div>
       </div>
-    </div>
+    </MqttProvider>
   )
 }

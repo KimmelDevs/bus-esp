@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { mqttPublish } from '@/lib/mqtt-publish'
 
@@ -10,10 +10,13 @@ import { mqttPublish } from '@/lib/mqtt-publish'
  *       rfid/<uid_no_colons>/result
  *  4. ESP32 is already subscribed to that topic and handles door/LCD/buzzer
  *
- * Result format the ESP32 expects:
+ * ESP32 still receives the pipe-delimited string it expects:
  *   APPROVED|<newBalance>
  *   INSUFFICIENT|<currentBalance>
  *   INVALID
+ *
+ * Dashboard receives JSON:
+ *   { status, name, type, amount, balance_after }
  */
 export async function POST(req: NextRequest) {
   const body = await req.text()
@@ -23,11 +26,11 @@ export async function POST(req: NextRequest) {
   const rawUid = params.get('uid') ?? ''
   const uid = rawUid.replace(/:/g, '').toUpperCase()
 
-  if (!uid) return new Response('NO UID', { status: 400 })
+  if (!uid) return NextResponse.json({ error: 'NO UID' }, { status: 400 })
 
   const supabaseAdmin = getSupabaseAdmin()
 
-  // ── Lookup user ────────────────────────────────────────────────────────────
+  // ── Lookup user ─────────────────────────────────────────────────────────────
   const { data: user } = await supabaseAdmin
     .from('users')
     .select('*')
@@ -39,12 +42,11 @@ export async function POST(req: NextRequest) {
       .from('transactions')
       .insert({ rfid_uid: uid, status: 'NOT FOUND', amount: 0, balance_after: 0 })
 
-    // Tell the ESP32 this card is unknown
     await mqttPublish(`rfid/${uid}/result`, 'INVALID')
-    return new Response('NOT FOUND', { status: 200 })
+    return NextResponse.json({ status: 'NOT FOUND', name: 'Unknown Card', type: '—', amount: 0, balance_after: 0 })
   }
 
-  // ── Fare calculation ───────────────────────────────────────────────────────
+  // ── Fare calculation ────────────────────────────────────────────────────────
   const { data: settings } = await supabaseAdmin
     .from('settings')
     .select('fare')
@@ -56,7 +58,7 @@ export async function POST(req: NextRequest) {
 
   const balance = Number(user.balance)
 
-  // ── Process ────────────────────────────────────────────────────────────────
+  // ── Process ─────────────────────────────────────────────────────────────────
   if (balance >= fare) {
     const newBalance = balance - fare
 
@@ -70,10 +72,15 @@ export async function POST(req: NextRequest) {
       }),
     ])
 
-    // ✅ Tell ESP32: open door, show balance on LCD
     await mqttPublish(`rfid/${uid}/result`, `APPROVED|${newBalance}`)
 
-    return new Response(`APPROVED|${newBalance}`, { status: 200 })
+    return NextResponse.json({
+      status: 'APPROVED',
+      name: user.name,
+      type: user.type,
+      amount: fare,
+      balance_after: newBalance,
+    })
 
   } else {
     await supabaseAdmin.from('transactions').insert({
@@ -83,9 +90,14 @@ export async function POST(req: NextRequest) {
       balance_after: balance,
     })
 
-    // ⚠️ Tell ESP32: keep door closed, show NO BALANCE
     await mqttPublish(`rfid/${uid}/result`, `INSUFFICIENT|${balance}`)
 
-    return new Response(`INSUFFICIENT|${balance}`, { status: 200 })
+    return NextResponse.json({
+      status: 'INSUFFICIENT',
+      name: user.name,
+      type: user.type,
+      amount: 0,
+      balance_after: balance,
+    })
   }
 }

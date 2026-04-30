@@ -18,6 +18,15 @@ type LiveEvent = {
   ts: number
 }
 
+// Response shape returned by /api/process-payment (JSON)
+type PaymentResult = {
+  status: string
+  name: string
+  type: string
+  amount: number
+  balance_after: number
+}
+
 const SCAN_COOLDOWN_MS = 5000
 
 function StatCard({ label, value, unit, color, icon, sub }: {
@@ -66,7 +75,10 @@ export default function DashboardPage() {
   const [currentEvent,setCurrentEvent]=useState<LiveEvent|null>(null)
   const processingRef=useRef(false)
   const cooldownRef=useRef<Map<string,number>>(new Map())
-  const {lastScan,status:mqttStatus,clearScan}=useMqttScan()
+  // Deduplicates rapid-fire duplicate MQTT messages (ESP32 fires 2-3 per tap)
+  const dedupRef=useRef<{uid:string;ts:number}|null>(null)
+  const MQTT_DEDUP_MS=2000
+  const {lastScan,status:mqttStatus,clearScan,scanOwner}=useMqttScan()
 
   const loadStats=useCallback(async()=>{
     const [usersRes,txRes,txAllRes]=await Promise.all([
@@ -83,60 +95,74 @@ export default function DashboardPage() {
 
   useEffect(()=>{loadStats()},[loadStats])
 
-  useEffect(()=>{ ;(async()=>{
-    if(!lastScan||processingRef.current)return
+  useEffect(()=>{
+    if(!lastScan||scanOwner!=='dashboard')return
     const uid=lastScan.trim().toUpperCase()
     clearScan()
     const now=Date.now()
+
+    // ── MQTT dedup: drop duplicate messages for the same UID within 2 s ──────
+    if(dedupRef.current&&dedupRef.current.uid===uid&&now-dedupRef.current.ts<MQTT_DEDUP_MS)return
+    dedupRef.current={uid,ts:now}
+
+    if(processingRef.current)return
     const lastTime=cooldownRef.current.get(uid)??0
     const remaining=SCAN_COOLDOWN_MS-(now-lastTime)
+
+    // ── Cooldown: card tapped too soon ───────────────────────────────────────
     if(remaining>0){
-      const {data:coolUser}=await supabase.from('users').select('name,type').eq('rfid_uid',uid).single()
-      const ev:LiveEvent={id:crypto.randomUUID(),rfid_uid:uid,name:coolUser?.name??'—',type:coolUser?.type??'—',status:'COOLDOWN',amount:0,balance_after:0,ts:now}
+      // We don't know the name here yet (no API call for cooldown) — show UID only
+      const ev:LiveEvent={id:crypto.randomUUID(),rfid_uid:uid,name:'—',type:'—',status:'COOLDOWN',amount:0,balance_after:0,ts:now}
       setCurrentEvent(ev)
       setLiveEvents(prev=>[ev,...prev].slice(0,20))
       return
     }
+
     processingRef.current=true
     cooldownRef.current.set(uid,now)
 
-    // Look up user + settings immediately so the name shows during PROCESSING
-    const [{data:user},{data:settings}]=await Promise.all([
-      supabase.from('users').select('name, type, balance').eq('rfid_uid',uid).single(),
-      supabase.from('settings').select('fare').eq('id',1).single(),
-    ])
-    let fare=Number(settings?.fare??10)
-    if(user?.type==='Student')fare=Math.max(0,fare-5)
-
+    // ── Show PROCESSING state immediately ────────────────────────────────────
     const processingEv:LiveEvent={
       id:crypto.randomUUID(),rfid_uid:uid,
-      name:user?.name??'Unknown Card',
-      type:user?.type??'—',
+      name:'Looking up...',
+      type:'—',
       status:'PROCESSING',amount:0,balance_after:0,ts:now,
     }
     setCurrentEvent(processingEv)
 
+    // ── Call API — it handles lookup + transaction recording ─────────────────
     ;(async()=>{
       try{
-        const body=new URLSearchParams({uid})
-        const res=await fetch('/api/process-payment',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body.toString()})
-        const text=await res.text()
-        const [statusStr,balStr]=text.split('|')
+        const res=await fetch('/api/process-payment',{
+          method:'POST',
+          headers:{'Content-Type':'application/x-www-form-urlencoded'},
+          body:new URLSearchParams({uid}).toString(),
+        })
+        const data:PaymentResult=await res.json()
+
         const finalEv:LiveEvent={
-          id:processingEv.id,rfid_uid:uid,
-          name:user?.name??'—',
-          type:user?.type??'—',
-          status:statusStr as LiveEvent['status'],
-          amount:statusStr==='APPROVED'?fare:0,
-          balance_after:balStr?Number(balStr):0,
+          id:processingEv.id,
+          rfid_uid:uid,
+          name:data.name,
+          type:data.type,
+          status:data.status as LiveEvent['status'],
+          amount:data.amount,
+          balance_after:data.balance_after,
           ts:now,
         }
         setCurrentEvent(finalEv)
         setLiveEvents(prev=>[finalEv,...prev].slice(0,20))
         await loadStats()
-      }finally{processingRef.current=false}
+      }catch(err){
+        console.error('process-payment error',err)
+        const errEv:LiveEvent={id:processingEv.id,rfid_uid:uid,name:'Error',type:'—',status:'NOT FOUND',amount:0,balance_after:0,ts:now}
+        setCurrentEvent(errEv)
+        setLiveEvents(prev=>[errEv,...prev].slice(0,20))
+      }finally{
+        processingRef.current=false
+      }
     })()
-  })() },[lastScan])// eslint-disable-line
+  },[lastScan])// eslint-disable-line
 
   const tabStyle=(active:boolean):React.CSSProperties=>({padding:'8px 18px',borderRadius:8,fontSize:12,fontWeight:700,border:'none',cursor:'pointer',background:active?'var(--royal)':'transparent',color:active?'#fff':'var(--muted)',transition:'all 0.15s'})
 

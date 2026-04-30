@@ -19,7 +19,10 @@ export default function TopUpPage() {
   const [scanFlash, setScanFlash] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  const { lastScan, status, clearScan } = useMqttScan()
+  const { lastScan, status, clearScan, claimScanner, releaseScanner } = useMqttScan()
+
+  // Claim scanner on mount so dashboard doesn't intercept scans
+  useEffect(()=>{ claimScanner('topup'); return ()=>releaseScanner() },[])
 
   // When ESP32 sends a scan, look up the user and auto-select them
   useEffect(() => {

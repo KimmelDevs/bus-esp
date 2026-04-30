@@ -9,7 +9,10 @@ export default function AddUserPage() {
   const [loading, setLoading] = useState(false)
   const [scanFlash, setScanFlash] = useState(false)
 
-  const { lastScan, status, clearScan } = useMqttScan()
+  const { lastScan, status, clearScan, claimScanner, releaseScanner } = useMqttScan()
+
+  // Claim scanner on mount so dashboard doesn't intercept scans
+  useEffect(()=>{ claimScanner('add-user'); return ()=>releaseScanner() },[])
 
   // Auto-fill RFID field when a card is scanned
   useEffect(() => {
