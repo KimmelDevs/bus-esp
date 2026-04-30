@@ -1,11 +1,24 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useMqttScan } from '@/lib/useMqttScan'
 
 export default function AddUserPage() {
   const [form, setForm] = useState({ name: '', rfid_uid: '', balance: '', type: '' })
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [loading, setLoading] = useState(false)
+  const [scanFlash, setScanFlash] = useState(false)
+
+  const { lastScan, status, clearScan } = useMqttScan()
+
+  // Auto-fill RFID field when a card is scanned
+  useEffect(() => {
+    if (!lastScan) return
+    setForm(f => ({ ...f, rfid_uid: lastScan }))
+    setScanFlash(true)
+    setTimeout(() => setScanFlash(false), 1500)
+    clearScan()
+  }, [lastScan])
 
   async function handleSubmit() {
     if (!form.name || !form.rfid_uid || !form.balance || !form.type) {
@@ -50,6 +63,9 @@ export default function AddUserPage() {
     marginBottom: 7,
   }
 
+  const statusColor = status === 'connected' ? '#16a34a' : status === 'error' ? '#dc2626' : '#d97706'
+  const statusLabel = status === 'connected' ? 'Listening for scan…' : status === 'error' ? 'MQTT error' : 'Connecting…'
+
   return (
     <div>
       <div style={{ marginBottom: 28 }}>
@@ -81,6 +97,24 @@ export default function AddUserPage() {
             Card Holder Details
           </div>
 
+          {/* MQTT status bar */}
+          <div style={{
+            marginBottom: 20, padding: '9px 14px',
+            borderRadius: 8,
+            background: status === 'connected' ? '#f0fdf4' : '#fffbeb',
+            border: `1px solid ${statusColor}30`,
+            fontSize: 12, color: statusColor,
+            display: 'flex', alignItems: 'center', gap: 7,
+          }}>
+            <span style={{
+              width: 7, height: 7, borderRadius: '50%',
+              background: statusColor,
+              display: 'inline-block',
+              animation: status === 'connected' ? 'pulse 2s infinite' : 'none',
+            }} />
+            {statusLabel}
+          </div>
+
           {msg && (
             <div style={{
               marginBottom: 20, padding: '12px 16px',
@@ -108,13 +142,20 @@ export default function AddUserPage() {
             <div>
               <label style={labelStyle}>RFID UID</label>
               <input
-                style={{ ...inputStyle, fontFamily: 'var(--font-mono)', letterSpacing: '0.06em' }}
-                placeholder="e.g. A1B2C3D4"
+                style={{
+                  ...inputStyle,
+                  fontFamily: 'var(--font-mono)',
+                  letterSpacing: '0.06em',
+                  border: scanFlash ? '1.5px solid #16a34a' : '1.5px solid var(--border)',
+                  background: scanFlash ? '#f0fdf4' : 'var(--off-white)',
+                  transition: 'all 0.3s',
+                }}
+                placeholder="Tap card on reader or type manually"
                 value={form.rfid_uid}
                 onChange={e => setForm({ ...form, rfid_uid: e.target.value })}
               />
               <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 5 }}>
-                Colons will be stripped automatically. Case-insensitive.
+                {scanFlash ? '✓ Card scanned!' : 'Tap a card on the reader — it will auto-fill here.'}
               </div>
             </div>
 
@@ -211,23 +252,21 @@ export default function AddUserPage() {
             boxShadow: 'var(--shadow-sm)',
           }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-mid)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-              RFID UID Format
+              How Card Scan Works
             </div>
-            <div style={{
-              fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700,
-              color: 'var(--royal)', letterSpacing: '0.2em',
-              padding: '10px 14px', background: 'var(--off-white)',
-              borderRadius: 8, border: '1px solid var(--border)',
-              marginBottom: 10,
-            }}>
-              A1:B2:C3:D4
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.7 }}>
-              Accepted as-is or with colons. All characters are converted to uppercase automatically.
+            <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.8 }}>
+              Tap any RFID card on the ESP32 reader. The UID will be sent via MQTT and auto-fill the field above. Then complete the rest of the form and register.
             </div>
           </div>
         </div>
       </div>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+      `}</style>
     </div>
   )
 }

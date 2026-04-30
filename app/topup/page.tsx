@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useMqttScan } from '@/lib/useMqttScan'
 
 interface UserSuggestion {
   id: string
@@ -15,9 +16,36 @@ export default function TopUpPage() {
   const [showDropdown, setShowDropdown] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [scanFlash, setScanFlash] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // Search users by name as user types
+  const { lastScan, status, clearScan } = useMqttScan()
+
+  // When ESP32 sends a scan, look up the user and auto-select them
+  useEffect(() => {
+    if (!lastScan) return
+    const uid = lastScan.replace(/:/g, '').toUpperCase()
+    clearScan()
+
+    supabase
+      .from('users')
+      .select('id, name, rfid_uid')
+      .eq('rfid_uid', uid)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          setSelectedUser(data)
+          setForm(f => ({ ...f, name: data.name }))
+          setScanFlash(true)
+          setTimeout(() => setScanFlash(false), 1500)
+          setError('')
+        } else {
+          setError('Card not found. Register it first in Add User.')
+        }
+      })
+  }, [lastScan])
+
+  // Name search autocomplete
   useEffect(() => {
     const query = form.name.trim()
     if (!query || selectedUser) {
@@ -67,7 +95,7 @@ export default function TopUpPage() {
   }
 
   async function handleSubmit() {
-    if (!selectedUser) { setError('Please select a user from the list.'); return }
+    if (!selectedUser) { setError('Please select a user or tap a card.'); return }
     if (!form.amount) { setError('Please enter an amount.'); return }
     setLoading(true)
     setError('')
@@ -108,6 +136,8 @@ export default function TopUpPage() {
   }
 
   const quickAmounts = [50, 100, 200, 500]
+  const statusColor = status === 'connected' ? '#16a34a' : status === 'error' ? '#dc2626' : '#d97706'
+  const statusLabel = status === 'connected' ? 'Ready — tap card or search by name' : status === 'error' ? 'MQTT error' : 'Connecting…'
 
   return (
     <div>
@@ -140,6 +170,24 @@ export default function TopUpPage() {
             Payment Details
           </div>
 
+          {/* MQTT status bar */}
+          <div style={{
+            marginBottom: 20, padding: '9px 14px',
+            borderRadius: 8,
+            background: status === 'connected' ? '#f0fdf4' : '#fffbeb',
+            border: `1px solid ${statusColor}30`,
+            fontSize: 12, color: statusColor,
+            display: 'flex', alignItems: 'center', gap: 7,
+          }}>
+            <span style={{
+              width: 7, height: 7, borderRadius: '50%',
+              background: statusColor,
+              display: 'inline-block',
+              animation: status === 'connected' ? 'pulse 2s infinite' : 'none',
+            }} />
+            {statusLabel}
+          </div>
+
           {error && (
             <div style={{
               marginBottom: 20, padding: '12px 16px', borderRadius: 9,
@@ -153,13 +201,18 @@ export default function TopUpPage() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
-            {/* Name search with autocomplete */}
+            {/* Name search + scan auto-fill */}
             <div ref={dropdownRef} style={{ position: 'relative' }}>
               <label style={labelStyle}>User Name</label>
               <div style={{ position: 'relative' }}>
                 <input
-                  style={inputStyle}
-                  placeholder="Search by name…"
+                  style={{
+                    ...inputStyle,
+                    border: scanFlash ? '1.5px solid #16a34a' : '1.5px solid var(--border)',
+                    background: scanFlash ? '#f0fdf4' : 'var(--off-white)',
+                    transition: 'all 0.3s',
+                  }}
+                  placeholder="Tap card on reader or search by name…"
                   value={form.name}
                   autoComplete="off"
                   onChange={e => {
@@ -177,13 +230,11 @@ export default function TopUpPage() {
                       color: 'var(--muted)', fontSize: 18, lineHeight: 1, padding: 2,
                     }}
                     title="Clear"
-                  >
-                    ×
-                  </button>
+                  >×</button>
                 )}
               </div>
 
-              {/* Dropdown suggestions */}
+              {/* Dropdown */}
               {showDropdown && suggestions.length > 0 && (
                 <div style={{
                   position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
@@ -217,7 +268,7 @@ export default function TopUpPage() {
                 </div>
               )}
 
-              {/* Confirmed selection badge */}
+              {/* Confirmed badge */}
               {selectedUser && (
                 <div style={{
                   marginTop: 8, padding: '8px 12px',
@@ -225,19 +276,20 @@ export default function TopUpPage() {
                   borderRadius: 8, fontSize: 12, color: '#16a34a',
                   display: 'flex', alignItems: 'center', gap: 6,
                 }}>
-                  <span>✓</span>
+                  <span>{scanFlash ? '📡' : '✓'}</span>
                   <span>
                     <strong>{selectedUser.name}</strong>
                     &nbsp;·&nbsp;
                     <span style={{ fontFamily: 'var(--font-mono)' }}>{selectedUser.rfid_uid}</span>
+                    {scanFlash && <span style={{ marginLeft: 6, opacity: 0.7 }}>Card scanned!</span>}
                   </span>
                 </div>
               )}
             </div>
 
+            {/* Amount */}
             <div>
               <label style={labelStyle}>Amount (₱)</label>
-              {/* Quick amount buttons */}
               <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                 {quickAmounts.map(a => (
                   <button
@@ -322,7 +374,7 @@ export default function TopUpPage() {
               How It Works
             </div>
             {[
-              { step: '1', title: 'Search by Name', desc: 'Type the user\'s name and select from the list' },
+              { step: '1', title: 'Tap Card or Search', desc: 'Tap the RFID card on the reader — it auto-fills. Or search by name.' },
               { step: '2', title: 'Choose Amount', desc: 'Select or enter the top-up amount (min ₱50)' },
               { step: '3', title: 'Pay via GCash', desc: 'Complete payment on the PayMongo checkout page' },
               { step: '4', title: 'Balance Updated', desc: 'Wallet loads automatically upon confirmation' },
@@ -350,6 +402,13 @@ export default function TopUpPage() {
           </div>
         </div>
       </div>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+      `}</style>
     </div>
   )
 }
