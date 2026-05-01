@@ -5,7 +5,7 @@ import Header from './Header'
 import Sidebar from './Sidebar'
 import { MqttProvider } from '@/lib/MqttContext'
 
-const PUBLIC_PATHS = ['/login', '/topup/success', '/topup/failed']
+const PUBLIC_PATHS = ['/login', '/signup', '/topup/success', '/topup/failed']
 
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()

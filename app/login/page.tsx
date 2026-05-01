@@ -297,9 +297,12 @@ export default function LoginPage() {
 
             <p style={{ marginTop: 24, fontSize: 13, color: 'var(--muted)', textAlign: 'center' }}>
               Don't have an account?{' '}
-              <a href="/signup" style={{ color: 'var(--royal)', fontWeight: 600, textDecoration: 'underline' }}>
+              <button
+                onClick={() => router.push('/signup')}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--royal)', fontWeight: 600, textDecoration: 'underline', fontSize: 13, fontFamily: 'var(--font-body)', padding: 0 }}
+              >
                 Sign up
-              </a>
+              </button>
             </p>
 
             <p style={{ marginTop: 12, fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
