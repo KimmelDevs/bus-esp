@@ -67,12 +67,14 @@ export default function LoginPage() {
 
   return (
     <>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: var(--off-white); }
         @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
         @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.75)} }
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap');
         :root {
           --white:#ffffff; --off-white:#f4f7fc; --surface:#eef2fa; --surface2:#e2eaf6;
           --border:#c8d6ef; --border-light:#dce8f8;
@@ -149,7 +151,7 @@ export default function LoginPage() {
               fontSize: 15, color: 'rgba(255,255,255,0.65)',
               lineHeight: 1.7, maxWidth: 380,
             }}>
-              Manage RFID card holders, monitor real-time transactions, and process GCash top-ups seamlessly from one unified dashboard.
+              Residents can top up their RFID cards anytime. Admins can manage card holders, monitor real-time transactions, and oversee the full payment system.
             </p>
 
             <div style={{ display: 'flex', gap: 32, marginTop: 52 }}>
@@ -185,7 +187,7 @@ export default function LoginPage() {
                 Welcome back
               </h2>
               <p style={{ fontSize: 13, color: 'var(--muted)' }}>
-                Sign in to access the admin dashboard
+                Sign in to manage your RFID card or access the admin dashboard
               </p>
             </div>
 
@@ -293,8 +295,15 @@ export default function LoginPage() {
               )}
             </button>
 
-            <p style={{ marginTop: 28, fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
-              BusPay RFID System • Admin Portal
+            <p style={{ marginTop: 24, fontSize: 13, color: 'var(--muted)', textAlign: 'center' }}>
+              Don't have an account?{' '}
+              <a href="/signup" style={{ color: 'var(--royal)', fontWeight: 600, textDecoration: 'underline' }}>
+                Sign up
+              </a>
+            </p>
+
+            <p style={{ marginTop: 12, fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
+              BusPay RFID System • Resident & Admin Portal
             </p>
           </div>
         </div>
