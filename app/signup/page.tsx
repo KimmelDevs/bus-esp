@@ -47,14 +47,31 @@ export default function SignupPage() {
     setLoading(true)
     try {
       const { supabase } = await import('@/lib/supabase')
-      const { error: err } = await supabase.auth.signUp({
+      const { data, error: err } = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
         options: {
-          data: { full_name: form.name },
+          data: { full_name: form.name, role: 'resident' },
         },
       })
       if (err) throw new Error(err.message)
+
+      // Insert a resident row in the users table so the resident dashboard
+      // can find this account by email. rfid_uid starts null (linked later).
+      if (data.user) {
+        const { error: insertErr } = await supabase
+          .from('users')
+          .insert({
+            name: form.name,
+            email: form.email,
+            role: 'resident',
+          })
+        // Ignore duplicate-email conflicts (e.g. re-registration attempt)
+        if (insertErr && !insertErr.message.includes('duplicate')) {
+          throw new Error(insertErr.message)
+        }
+      }
+
       setSuccess(true)
     } catch (e: any) {
       setError(e.message || 'Something went wrong.')
@@ -181,7 +198,7 @@ export default function SignupPage() {
               fontSize: 15, color: 'rgba(255,255,255,0.65)',
               lineHeight: 1.7, maxWidth: 380,
             }}>
-              Create your admin account to start managing RFID card holders, track live transactions, and oversee GCash top-up processing.
+              Create your BusPay account. Residents can link their RFID card and top up via GCash. Admins can manage card holders and monitor live transactions.
             </p>
 
             <div style={{ display: 'flex', gap: 32, marginTop: 52 }}>
@@ -233,7 +250,7 @@ export default function SignupPage() {
                   Account Created!
                 </h2>
                 <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 28 }}>
-                  We sent a confirmation link to <strong style={{ color: 'var(--text-mid)' }}>{form.email}</strong>. Please check your inbox to verify your account before signing in.
+                  We sent a confirmation link to <strong style={{ color: 'var(--text-mid)' }}>{form.email}</strong>. Please check your inbox and verify your account, then sign in to link your RFID card.
                 </p>
                 <button
                   className="signup-btn"
@@ -264,7 +281,7 @@ export default function SignupPage() {
                     Create account
                   </h2>
                   <p style={{ fontSize: 13, color: 'var(--muted)' }}>
-                    Set up your admin access to the dashboard
+                    Sign up as a resident to link your RFID card and top up via GCash
                   </p>
                 </div>
 

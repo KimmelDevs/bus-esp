@@ -10,7 +10,7 @@ type MqttStatus = 'connecting' | 'connected' | 'error' | 'disconnected'
 // Who currently owns the scanner.
 // 'dashboard' = dashboard processes scans (default)
 // 'add-user' | 'topup' = those pages own it; dashboard ignores scans
-type ScanOwner = 'dashboard' | 'add-user' | 'topup'
+type ScanOwner = 'dashboard' | 'add-user' | 'topup' | 'resident-register'
 
 interface MqttContextValue {
   lastScan: string | null

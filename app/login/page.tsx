@@ -26,7 +26,10 @@ export default function LoginPage() {
     ;(async () => {
       const { supabase } = await import('@/lib/supabase')
       const { data } = await supabase.auth.getSession()
-      if (data.session) router.replace('/dashboard')
+      if (data.session) {
+        const role = data.session.user.user_metadata?.role
+        router.replace(role === 'admin' ? '/dashboard' : '/resident')
+      }
     })()
   }, [])
 
@@ -36,7 +39,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const { supabase } = await import('@/lib/supabase')
-      const { error: err } = await supabase.auth.signInWithPassword({ email, password })
+      const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
       if (err) {
         const msgs: Record<string, string> = {
           'Invalid login credentials': 'Incorrect email or password.',
@@ -44,7 +47,8 @@ export default function LoginPage() {
         }
         throw new Error(msgs[err.message] || err.message)
       }
-      router.replace('/dashboard')
+      const role = data.session?.user.user_metadata?.role
+      router.replace(role === 'admin' ? '/dashboard' : '/resident')
     } catch (e: any) {
       setError(e.message || 'Something went wrong.')
     } finally {
