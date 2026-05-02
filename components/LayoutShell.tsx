@@ -6,6 +6,7 @@ import Sidebar from './Sidebar'
 import { MqttProvider } from '@/lib/MqttContext'
 
 const PUBLIC_PATHS = ['/login', '/signup', '/topup/success', '/topup/failed']
+const RESIDENT_PATHS = ['/resident']
 
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -14,6 +15,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const [userEmail, setUserEmail] = useState('')
 
   const isPublic = PUBLIC_PATHS.some(p => pathname.startsWith(p))
+  const isResident = RESIDENT_PATHS.some(p => pathname.startsWith(p))
 
   useEffect(() => {
     ;(async () => {
@@ -72,6 +74,17 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   }
 
   if (!authed) return null
+
+  // Resident routes — MqttProvider for scanner, but no admin sidebar/header
+  if (isResident) return (
+    <MqttProvider>
+      <div style={{ minHeight: '100vh', background: 'var(--off-white)', fontFamily: 'var(--font-body)' }}>
+        <main style={{ maxWidth: 960, margin: '0 auto', padding: '32px 24px' }}>
+          {children}
+        </main>
+      </div>
+    </MqttProvider>
+  )
 
   return (
     <MqttProvider>
