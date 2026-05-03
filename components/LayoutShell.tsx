@@ -7,15 +7,19 @@ import { MqttProvider } from '@/lib/MqttContext'
 
 const PUBLIC_PATHS = ['/login', '/signup', '/topup/success', '/topup/failed']
 const RESIDENT_PATHS = ['/resident']
+// Routes that only admins are allowed to visit
+const ADMIN_ONLY_PATHS = ['/dashboard', '/add-user', '/fare-settings', '/transactions', '/topup']
 
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const [authed, setAuthed] = useState<boolean | null>(null)
   const [userEmail, setUserEmail] = useState('')
+  const [role, setRole] = useState<string | null>(null)
 
   const isPublic = PUBLIC_PATHS.some(p => pathname.startsWith(p))
   const isResident = RESIDENT_PATHS.some(p => pathname.startsWith(p))
+  const isAdminOnly = ADMIN_ONLY_PATHS.some(p => pathname.startsWith(p))
 
   useEffect(() => {
     ;(async () => {
@@ -23,19 +27,32 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
       const { data } = await supabase.auth.getSession()
       const session = data.session
       if (session) {
+        const userRole = session.user.user_metadata?.role ?? 'resident'
         setAuthed(true)
         setUserEmail(session.user.email ?? '')
+        setRole(userRole)
+        // Residents must not access admin-only routes
+        if (userRole !== 'admin' && isAdminOnly) {
+          router.replace('/resident')
+        }
       } else {
         setAuthed(false)
+        setRole(null)
         if (!isPublic) router.replace('/login')
       }
 
       supabase.auth.onAuthStateChange((_event, session) => {
         if (session) {
+          const userRole = session.user.user_metadata?.role ?? 'resident'
           setAuthed(true)
           setUserEmail(session.user.email ?? '')
+          setRole(userRole)
+          if (userRole !== 'admin' && isAdminOnly) {
+            router.replace('/resident')
+          }
         } else {
           setAuthed(false)
+          setRole(null)
           if (!isPublic) router.replace('/login')
         }
       })
@@ -74,6 +91,9 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   }
 
   if (!authed) return null
+
+  // Block render while a resident is being redirected away from an admin route
+  if (role !== null && role !== 'admin' && isAdminOnly) return null
 
   // Resident routes — MqttProvider for scanner, but no admin sidebar/header
   if (isResident) return (
