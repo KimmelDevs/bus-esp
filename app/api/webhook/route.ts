@@ -29,8 +29,8 @@ export async function POST(req: NextRequest) {
   const dataAttrs = payload?.data?.attributes?.data?.attributes ?? payload?.data?.attributes ?? {}
   const metadata = dataAttrs?.metadata ?? {}
 
-  const rfid_uid    = metadata?.rfid_uid
-  const payment_id  = metadata?.payment_id
+  const rfid_uid   = metadata?.rfid_uid
+  const payment_id = metadata?.payment_id
   const amountCentavos = dataAttrs?.amount_due ?? dataAttrs?.amount ?? 0
   const amount = amountCentavos / 100
 
@@ -41,44 +41,50 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing rfid_uid' }, { status: 400 })
   }
 
+  if (!amount || amount <= 0) {
+    console.log('[webhook] skipping — amount is 0 or missing')
+    return NextResponse.json({ received: true })
+  }
+
+  if (!payment_id) {
+    console.error('[webhook] no payment_id — cannot deduplicate')
+    return NextResponse.json({ error: 'Missing payment_id' }, { status: 400 })
+  }
+
   const supabaseAdmin = getSupabaseAdmin()
   const cleanUid = rfid_uid.replace(/:/g, '').toUpperCase()
 
-  const { data: user, error: userErr } = await supabaseAdmin
+  // Atomic dedup via DB function — marks payment paid only if still pending,
+  // so two simultaneous webhook calls cannot both process the same payment
+  const { data: result, error: rpcErr } = await supabaseAdmin
+    .rpc('process_topup', {
+      p_payment_id: payment_id,
+      p_rfid_uid: cleanUid,
+      p_amount: amount,
+    })
+
+  console.log('[webhook] process_topup result:', result, '| error:', rpcErr)
+
+  if (rpcErr) {
+    console.error('[webhook] process_topup error:', rpcErr)
+    return NextResponse.json({ error: rpcErr.message }, { status: 500 })
+  }
+
+  if (result === 'duplicate') {
+    console.log('[webhook] duplicate webhook — skipping')
+    return NextResponse.json({ received: true })
+  }
+
+  // Fetch updated balance for MQTT notification
+  const { data: user } = await supabaseAdmin
     .from('users')
     .select('balance')
     .eq('rfid_uid', cleanUid)
     .single()
 
-  console.log('[webhook] user:', user, '| error:', userErr)
+  const newBalance = Number(user?.balance ?? 0)
 
-  if (!user) {
-    console.error('[webhook] user not found for uid:', cleanUid)
-    return NextResponse.json({ error: 'User not found' }, { status: 404 })
-  }
-
-  const newBalance = Number(user.balance) + amount
-
-  const { error: balanceErr } = await supabaseAdmin
-    .from('users')
-    .update({ balance: newBalance })
-    .eq('rfid_uid', cleanUid)
-  console.log('[webhook] balance update error:', balanceErr)
-
-  if (payment_id) {
-    await supabaseAdmin
-      .from('payments')
-      .update({ status: 'paid' })
-      .eq('id', payment_id)
-  }
-
-  const { error: txErr } = await supabaseAdmin
-    .from('transactions')
-    .insert({ rfid_uid: cleanUid, status: 'TOPUP', amount, balance_after: newBalance })
-  console.log('[webhook] tx insert error:', txErr)
-
-  // ── Notify ESP32 about the top-up so it shows on the LCD ──────────────────
-  // ESP32 listens on  rfid/+/balance  and expects JSON: { uid, amount }
+  // Notify ESP32 about the top-up so it shows on the LCD
   await mqttPublish(
     `rfid/${cleanUid}/balance`,
     JSON.stringify({ uid: cleanUid, amount })

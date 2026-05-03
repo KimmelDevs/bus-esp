@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useMqttScan } from '@/lib/useMqttScan'
 
@@ -36,6 +36,7 @@ function statusBg(s: string) {
 
 export default function ResidentDashboard() {
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   // Auth / user state
   const [authEmail, setAuthEmail] = useState('')
@@ -100,6 +101,21 @@ export default function ResidentDashboard() {
 
       // Only fetch transactions if the RFID card is already linked
       if (u?.rfid_uid) fetchTransactions(u.rfid_uid)
+
+      // If redirected back from a successful topup, poll until balance updates
+      if (searchParams.get('topup') === 'success' && u?.id) {
+        let attempts = 0
+        const poll = setInterval(async () => {
+          attempts++
+          const { data } = await supabase.from('users').select('balance').eq('id', u.id).single()
+          if (data && Number(data.balance) !== Number(u.balance)) {
+            setResident(r => r ? { ...r, balance: data.balance } : r)
+            if (u.rfid_uid) fetchTransactions(u.rfid_uid)
+            clearInterval(poll)
+          }
+          if (attempts >= 10) clearInterval(poll) // stop after 10s
+        }, 1000)
+      }
     })()
   }, [])
 
@@ -124,6 +140,24 @@ export default function ResidentDashboard() {
       .single()
     if (data) setResident(r => r ? { ...r, balance: data.balance } : r)
   }
+
+  // Real-time balance subscription
+  useEffect(() => {
+    if (!resident?.id) return
+    const channel = supabase
+      .channel('resident-balance')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${resident.id}` },
+        (payload) => {
+          const updated = payload.new as ResidentUser
+          setResident(r => r ? { ...r, balance: updated.balance } : r)
+          if (updated.rfid_uid) fetchTransactions(updated.rfid_uid)
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [resident?.id])
 
   async function handleRegister() {
     if (!scannedUid) { setRegisterMsg({ text: 'Please tap your RFID card on the reader first.', ok: false }); return }
